@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RecruitFlow ATS</title>
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState } = React;
+
+        // Lucide icons as inline SVG (simplified)
+        const BriefcaseIcon = () => <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>;
+        const UsersIcon = () => <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" /></svg>;
+        const PlusIcon = () => <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>;
+        const KeyIcon = () => <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" /></svg>;
+
+        function App() {
+            const [view, setView] = useState('dashboard');
+            const [jobs, setJobs] = useState([]);
+            const [candidates, setCandidates] = useState([]);
+            const [license, setLicense] = useState({ tier: 'FREE', isValid: false });
+            const [showJobForm, setShowJobForm] = useState(false);
+
+            const TIER_LIMITS = {
+                FREE: { maxJobs: 1, maxCandidates: 25 },
+                STARTER: { maxJobs: 5, maxCandidates: 100 },
+                PROFESSIONAL: { maxJobs: 20, maxCandidates: 500 },
+                ENTERPRISE: { maxJobs: -1, maxCandidates: -1 }
+            };
+
+            const validateLicense = (key) => {
+                const validKeys = {
+                    'STARTER-1234-5678-9012': 'STARTER',
+                    'PRO-2345-6789-0123': 'PROFESSIONAL',
+                    'ENTERPRISE-3456-7890-1234': 'ENTERPRISE'
+                };
+                return validKeys[key] ? { tier: validKeys[key], isValid: true } : { tier: 'FREE', isValid: false };
+            };
+
+            const addJob = (e) => {
+                e.preventDefault();
+                const formData = new FormData(e.target);
+                const limits = TIER_LIMITS[license.tier];
+                
+                if (limits.maxJobs !== -1 && jobs.length >= limits.maxJobs) {
+                    alert(`Your ${license.tier} tier is limited to ${limits.maxJobs} job(s).`);
+                    return;
+                }
+
+                const newJob = {
+                    id: Date.now(),
+                    title: formData.get('title'),
+                    department: formData.get('department'),
+                    location: formData.get('location'),
+                    description: formData.get('description'),
+                    requirements: formData.get('requirements'),
+                    status: 'active'
+                };
+                setJobs([...jobs, newJob]);
+                setShowJobForm(false);
+            };
+
+            const addCandidate = (e) => {
+                e.preventDefault();
+                const formData = new FormData(e.target);
+                const limits = TIER_LIMITS[license.tier];
+                
+                if (limits.maxCandidates !== -1 && candidates.length >= limits.maxCandidates) {
+                    alert(`Your ${license.tier} tier is limited to ${limits.maxCandidates} candidates.`);
+                    return;
+                }
+
+                const jobId = parseInt(formData.get('jobId'));
+                const skills = formData.get('skills').toLowerCase().split(',').map(s => s.trim());
+                const job = jobs.find(j => j.id === jobId);
+                const jobSkills = job?.requirements.toLowerCase().split(',').map(s => s.trim()) || [];
+                const matchScore = skills.filter(s => jobSkills.some(js => js.includes(s) || s.includes(js))).length;
+                const score = Math.min(100, Math.round((matchScore / Math.max(jobSkills.length, 1)) * 100));
+
+                const newCandidate = {
+                    id: Date.now(),
+                    jobId,
+                    name: formData.get('name'),
+                    email: formData.get('email'),
+                    phone: formData.get('phone'),
+                    skills: formData.get('skills'),
+                    experience: formData.get('experience'),
+                    score,
+                    status: 'new'
+                };
+                setCandidates([...candidates, newCandidate]);
+                alert('Application submitted!');
+                setView('dashboard');
+            };
+
+            return (
+                <div className="min-h-screen bg-gray-50">
+                    {/* Navigation */}
+                    <nav className="bg-white shadow-sm border-b mb-6">
+                        <div className="flex items-center justify-between px-6 py-4">
+                            <div className="flex items-center gap-2">
+                                <BriefcaseIcon />
+                                <h1 className="text-2xl font-bold">RecruitFlow ATS</h1>
+                            </div>
+                            <div className="flex gap-2">
+                                <button onClick={() => setView('dashboard')} className={`px-4 py-2 rounded-lg ${view === 'dashboard' ? 'bg-blue-600 text-white' : 'text-gray-600 hover:bg-gray-100'}`}>Dashboard</button>
+                                <button onClick={() => setView('jobs')} className={`px-4 py-2 rounded-lg ${view === 'jobs' ? 'bg-blue-600 text-white' : 'text-gray-600 hover:bg-gray-100'}`}>Jobs</button>
+                                <button onClick={() => setView('candidates')} className={`px-4 py-2 rounded-lg ${view === 'candidates' ? 'bg-blue-600 text-white' : 'text-gray-600 hover:bg-gray-100'}`}>Candidates</button>
+                                <button onClick={() => setView('apply')} className={`px-4 py-2 rounded-lg ${view === 'apply' ? 'bg-blue-600 text-white' : 'text-gray-600 hover:bg-gray-100'}`}>Apply</button>
+                                <button onClick={() => setView('license')} className={`px-4 py-2 rounded-lg ${view === 'license' ? 'bg-blue-600 text-white' : 'text-gray-600 hover:bg-gray-100'}`}>License</button>
+                            </div>
+                        </div>
+                    </nav>
+
+                    <div className="max-w-7xl mx-auto px-6 py-6">
+                        {/* Dashboard View */}
+                        {view === 'dashboard' && (
+                            <div className="space-y-6">
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                    <div className="bg-gradient-to-br from-blue-500 to-blue-600 text-white p-6 rounded-lg shadow">
+                                        <p className="text-blue-100 text-sm">Active Jobs</p>
+                                        <p className="text-3xl font-bold mt-1">{jobs.filter(j => j.status === 'active').length}</p>
+                                    </div>
+                                    <div className="bg-gradient-to-br from-green-500 to-green-600 text-white p-6 rounded-lg shadow">
+                                        <p className="text-green-100 text-sm">Total Candidates</p>
+                                        <p className="text-3xl font-bold mt-1">{candidates.length}</p>
+                                    </div>
+                                    <div className="bg-gradient-to-br from-purple-500 to-purple-600 text-white p-6 rounded-lg shadow">
+                                        <p className="text-purple-100 text-sm">Current Tier</p>
+                                        <p className="text-2xl font-bold mt-1">{license.tier}</p>
+                                    </div>
+                                </div>
+                                <div className="bg-white rounded-lg shadow p-6">
+                                    <h2 className="text-xl font-bold mb-4">Recent Candidates</h2>
+                                    {candidates.length === 0 ? (
+                                        <p className="text-gray-500 text-center py-8">No candidates yet. Create a job posting to get started!</p>
+                                    ) : (
+                                        <div className="space-y-3">
+                                            {candidates.slice(0, 5).map(c => (
+                                                <div key={c.id} className="flex justify-between p-3 bg-gray-50 rounded-lg">
+                                                    <div>
+                                                        <p className="font-semibold">{c.name}</p>
+                                                        <p className="text-sm text-gray-600">{jobs.find(j => j.id === c.jobId)?.title}</p>
+                                                    </div>
+                                                    <span className="text-blue-600 font-semibold">Score: {c.score}%</span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Jobs View */}
+                        {view === 'jobs' && (
+                            <div>
+                                <div className="flex justify-between items-center mb-6">
+                                    <h2 className="text-2xl font-bold">Job Postings</h2>
+                                    <button onClick={() => setShowJobForm(!showJobForm)} className="bg-blue-600 text-white px-4 py-2 rounded-lg flex items-center gap-2">
+                                        <PlusIcon /> Add Job
+                                    </button>
+                                </div>
+
+                                {showJobForm && (
+                                    <form onSubmit={addJob} className="bg-white rounded-lg shadow p-6 mb-6">
+                                        <h3 className="text-xl font-bold mb-4">Create New Job</h3>
+                                        <input name="title" placeholder="Job Title" className="w-full px-4 py-2 border rounded-lg mb-4" required />
+                                        <input name="department" placeholder="Department" className="w-full px-4 py-2 border rounded-lg mb-4" required />
+                                        <input name="location" placeholder="Location" className="w-full px-4 py-2 border rounded-lg mb-4" required />
+                                        <textarea name="description" placeholder="Description" className="w-full px-4 py-2 border rounded-lg mb-4 h-24" required></textarea>
+                                        <textarea name="requirements" placeholder="Requirements (comma separated)" className="w-full px-4 py-2 border rounded-lg mb-4 h-20" required></textarea>
+                                        <button type="submit" className="bg-blue-600 text-white px-6 py-2 rounded-lg">Create Job</button>
+                                    </form>
+                                )}
+
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    {jobs.map(job => (
+                                        <div key={job.id} className="bg-white rounded-lg shadow p-6">
+                                            <h3 className="text-lg font-bold">{job.title}</h3>
+                                            <p className="text-sm text-gray-600">{job.department} • {job.location}</p>
+                                            <p className="text-gray-700 text-sm mt-2">{job.description}</p>
+                                            <p className="text-sm text-gray-600 mt-3">{candidates.filter(c => c.jobId === job.id).length} applicants</p>
+                                        </div>
+                                    ))}
+                                </div>
+
+                                {jobs.length === 0 && !showJobForm && (
+                                    <div className="text-center py-12 bg-white rounded-lg shadow">
+                                        <p className="text-gray-500 mb-4">No job postings yet</p>
+                                        <button onClick={() => setShowJobForm(true)} className="bg-blue-600 text-white px-6 py-2 rounded-lg">Create Your First Job</button>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
+                        {/* Candidates View */}
+                        {view === 'candidates' && (
+                            <div>
+                                <h2 className="text-2xl font-bold mb-6">Candidates</h2>
+                                <div className="bg-white rounded-lg shadow overflow-hidden">
+                                    <table className="w-full">
+                                        <thead className="bg-gray-50 border-b">
+                                            <tr>
+                                                <th className="text-left p-4">Name</th>
+                                                <th className="text-left p-4">Position</th>
+                                                <th className="text-left p-4">Email</th>
+                                                <th className="text-left p-4">Score</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {candidates.map(c => (
+                                                <tr key={c.id} className="border-b">
+                                                    <td className="p-4 font-medium">{c.name}</td>
+                                                    <td className="p-4">{jobs.find(j => j.id === c.jobId)?.title}</td>
+                                                    <td className="p-4">{c.email}</td>
+                                                    <td className="p-4">
+                                                        <span className="text-blue-600 font-semibold">{c.score}%</span>
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                    {candidates.length === 0 && (
+                                        <div className="text-center py-12">
+                                            <p className="text-gray-500">No candidates found</p>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Apply View */}
+                        {view === 'apply' && (
+                            <div className="max-w-2xl mx-auto">
+                                <div className="bg-white rounded-lg shadow p-8">
+                                    <h2 className="text-2xl font-bold mb-6">Apply for a Position</h2>
+                                    <form onSubmit={addCandidate}>
+                                        <select name="jobId" className="w-full px-4 py-2 border rounded-lg mb-4" required>
+                                            <option value="">Choose a position...</option>
+                                            {jobs.filter(j => j.status === 'active').map(job => (
+                                                <option key={job.id} value={job.id}>{job.title}</option>
+                                            ))}
+                                        </select>
+                                        <input name="name" placeholder="Full Name" className="w-full px-4 py-2 border rounded-lg mb-4" required />
+                                        <input name="email" type="email" placeholder="Email" className="w-full px-4 py-2 border rounded-lg mb-4" required />
+                                        <input name="phone" type="tel" placeholder="Phone" className="w-full px-4 py-2 border rounded-lg mb-4" required />
+                                        <input name="experience" type="number" placeholder="Years of Experience" className="w-full px-4 py-2 border rounded-lg mb-4" required />
+                                        <textarea name="skills" placeholder="Skills (comma separated)" className="w-full px-4 py-2 border rounded-lg mb-6 h-24" required></textarea>
+                                        <button type="submit" className="w-full bg-blue-600 text-white px-6 py-3 rounded-lg font-semibold">Submit Application</button>
+                                    </form>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* License View */}
+                        {view === 'license' && (
+                            <div>
+                                <h2 className="text-2xl font-bold mb-6">License Management</h2>
+                                <div className="bg-white rounded-lg shadow p-6 mb-6">
+                                    <h3 className="text-xl font-bold mb-2">Current Tier: {license.tier}</h3>
+                                    <p className="text-gray-600 mb-4">{license.isValid ? 'Active License' : 'Free Tier'}</p>
+                                    <form onSubmit={(e) => {
+                                        e.preventDefault();
+                                        const key = e.target.licenseKey.value;
+                                        const result = validateLicense(key);
+                                        if (result.isValid) {
+                                            setLicense(result);
+                                            alert(`License activated! You are now on the ${result.tier} tier.`);
+                                        } else {
+                                            alert('Invalid license key');
+                                        }
+                                    }}>
+                                        <input name="licenseKey" placeholder="Enter License Key" className="w-full px-4 py-2 border rounded-lg mb-2" />
+                                        <button type="submit" className="bg-blue-600 text-white px-4 py-2 rounded-lg">Activate</button>
+                                        <p className="text-xs text-gray-500 mt-2">Try: STARTER-1234-5678-9012 or PRO-2345-6789-0123</p>
+                                    </form>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            );
+        }
+
+        ReactDOM.render(<App />, document.getElementById('root'));
+    </script>
+</body>
+</html>
